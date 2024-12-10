@@ -38,7 +38,7 @@ const FilterPanel = ({ filters, onFilterChange }) => {
         setIsLoadingKeywords(true)
         // TODO: Obtener user_id del contexto de autenticación
         const userId = 1
-        const response = await axios.get(`http://localhost:8000/api/users/${userId}/keywords`)
+        const response = await axios.get(`http://localhost:8000/api/users/${userId}/keywords/`)
         const userKeywords = response.data.map(k => k.word)
         setKeywords(userKeywords)
         console.log('Palabras clave cargadas:', userKeywords)
@@ -78,7 +78,7 @@ const FilterPanel = ({ filters, onFilterChange }) => {
     try {
       // TODO: Obtener user_id del contexto de autenticación
       const userId = 1
-      await axios.post(`http://localhost:8000/api/users/${userId}/keywords`, {
+      await axios.post(`http://localhost:8000/api/users/${userId}/keywords/`, {
         word: newKeyword
       })
       
@@ -103,7 +103,7 @@ const FilterPanel = ({ filters, onFilterChange }) => {
     try {
       // TODO: Obtener user_id del contexto de autenticación
       const userId = 1
-      await axios.delete(`http://localhost:8000/api/users/${userId}/keywords/${keywordToDelete}`)
+      await axios.delete(`http://localhost:8000/api/users/${userId}/keywords/?word=${keywordToDelete}`)
       
       const updatedKeywords = keywords.filter(k => k !== keywordToDelete)
       setKeywords(updatedKeywords)
@@ -132,13 +132,13 @@ const FilterPanel = ({ filters, onFilterChange }) => {
   const handleStartScraping = async () => {
     try {
       setIsScrapingLoading(true)
-      const response = await axios.post('http://localhost:8000/api/scraping')
+      const response = await axios.post('http://localhost:8000/api/scraping/')
       setScrapingStatus(response.data)
       
       // Iniciar polling del estado
       const interval = setInterval(async () => {
         try {
-          const statusResponse = await axios.get('http://localhost:8000/api/scraping/status')
+          const statusResponse = await axios.get('http://localhost:8000/api/scraping/status/')
           setScrapingStatus(statusResponse.data)
           
           // Si el scraping ha terminado, detener el polling

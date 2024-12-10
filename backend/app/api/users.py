@@ -97,15 +97,15 @@ async def get_user_keywords(user_id: int, db: Session = Depends(get_db)):
     
     return db.query(models.Keyword).filter(models.Keyword.user_id == user_id).all()
 
-@router.delete("/{user_id}/keywords/{keyword_word}")
+@router.delete("/{user_id}/keywords/")
 async def delete_keyword(
     user_id: int,
-    keyword_word: str,
+    word: str,
     db: Session = Depends(get_db)
 ):
     # Verificar si la palabra clave existe y pertenece al usuario
     keyword = db.query(models.Keyword).filter(
-        models.Keyword.word == keyword_word,
+        models.Keyword.word == word,
         models.Keyword.user_id == user_id
     ).first()
     

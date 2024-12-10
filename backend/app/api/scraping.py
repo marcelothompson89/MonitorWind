@@ -88,11 +88,11 @@ scraping_status = {
     "results": []
 }
 
-@router.get("/status")
+@router.get("/scraping/status")
 async def get_scraping_status():
     return scraping_status
 
-@router.post("/")
+@router.post("/scraping")
 async def scrape_all_sources(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)

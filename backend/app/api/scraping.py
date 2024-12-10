@@ -1,7 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, and_, func
 from datetime import datetime
+import asyncio
+import json
+
 from ..database import SessionLocal
 from ..models import models
 from ..scrapers.anamed_scraper import scrape_anamed
@@ -79,20 +83,67 @@ async def save_items_to_db(items, db: Session):
         print(f"Tipo de error: {type(e)}")
         raise
 
-# Variable global para rastrear el estado del scraping
+# Estado global del proceso de scraping
 scraping_status = {
     "is_running": False,
     "total_sources": 0,
     "completed_sources": 0,
     "current_source": None,
+    "start_time": None,
     "results": []
 }
 
+async def status_event_generator():
+    global scraping_status
+    while scraping_status["is_running"]:
+        # Crear el mensaje de estado
+        status_data = {
+            "is_running": scraping_status["is_running"],
+            "total_sources": scraping_status["total_sources"],
+            "completed_sources": scraping_status["completed_sources"],
+            "current_source": scraping_status["current_source"],
+            "results": scraping_status["results"]
+        }
+        
+        # Enviar el mensaje como evento SSE
+        yield f"data: {json.dumps(status_data)}\n\n"
+        
+        # Esperar un poco antes de enviar la siguiente actualización
+        await asyncio.sleep(0.5)
+    
+    # Enviar un último mensaje cuando el proceso termina
+    final_status = {
+        "is_running": False,
+        "total_sources": scraping_status["total_sources"],
+        "completed_sources": scraping_status["completed_sources"],
+        "results": scraping_status["results"]
+    }
+    yield f"data: {json.dumps(final_status)}\n\n"
+
+@router.get("/scraping/status/stream")
+async def stream_status():
+    return StreamingResponse(
+        status_event_generator(),
+        media_type="text/event-stream"
+    )
+
 @router.get("/scraping/status")
 async def get_scraping_status():
-    return scraping_status
+    """
+    Endpoint para consultar el estado actual del proceso de scraping.
+    """
+    global scraping_status
+    print(f"Estado actual: {scraping_status}")
+    return {
+        "is_running": scraping_status["is_running"],
+        "total_sources": scraping_status["total_sources"],
+        "completed_sources": scraping_status["completed_sources"],
+        "current_source": scraping_status["current_source"],
+        "results": scraping_status["results"]
+    }
 
-@router.post("/scraping")
+@router.post("/scraping", include_in_schema=True)
+@router.post("/scraping/", include_in_schema=True)
 async def scrape_all_sources(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
@@ -101,9 +152,13 @@ async def scrape_all_sources(
     
     # Si ya está corriendo, retornar estado actual
     if scraping_status["is_running"]:
+        print("Scraping ya en ejecución")
         return {
             "message": "El proceso de scraping ya está en ejecución",
-            "status": scraping_status
+            "is_running": True,
+            "total_sources": scraping_status["total_sources"],
+            "completed_sources": scraping_status["completed_sources"],
+            "current_source": scraping_status["current_source"]
         }
     
     # Lista de scrapers disponibles
@@ -123,6 +178,7 @@ async def scrape_all_sources(
         ("DIGEMID Noticias", scrape_digemid_noticias)
     ]
     
+    print("Iniciando nuevo proceso de scraping")
     # Inicializar estado
     scraping_status.update({
         "is_running": True,
@@ -138,6 +194,7 @@ async def scrape_all_sources(
             for name, scraper_func in scrapers:
                 try:
                     scraping_status["current_source"] = name
+                    print(f"[{scraping_status['completed_sources'] + 1}/{len(scrapers)}] Iniciando scraping de {name}")
                     
                     # Ejecutar el scraping
                     items = await scraper_func()
@@ -148,13 +205,16 @@ async def scrape_all_sources(
                             "status": "success",
                             "message": f"Scraping completado. Se encontraron {len(items)} items."
                         })
+                        print(f"✓ {name}: {len(items)} items encontrados")
                     else:
                         scraping_status["results"].append({
                             "source": name,
                             "status": "success",
                             "message": "No se encontraron nuevos items."
                         })
+                        print(f"✓ {name}: No se encontraron items")
                 except Exception as e:
+                    print(f"✗ Error en {name}: {str(e)}")
                     scraping_status["results"].append({
                         "source": name,
                         "status": "error",
@@ -162,8 +222,10 @@ async def scrape_all_sources(
                     })
                 
                 scraping_status["completed_sources"] += 1
+                print(f"Progreso: {scraping_status['completed_sources']}/{scraping_status['total_sources']}")
                 
         finally:
+            print("Finalizando proceso de scraping")
             scraping_status["is_running"] = False
             scraping_status["current_source"] = None
     
@@ -171,7 +233,10 @@ async def scrape_all_sources(
     
     return {
         "message": "Proceso de scraping iniciado",
-        "status": scraping_status
+        "is_running": True,
+        "total_sources": len(scrapers),
+        "completed_sources": 0,
+        "current_source": None
     }
 
 @router.post("/cleanup")

@@ -131,50 +131,47 @@ const FilterPanel = ({ filters, onFilterChange }) => {
 
   const handleStartScraping = async () => {
     try {
-      setIsScrapingLoading(true)
-      const response = await axios.post('http://localhost:8000/api/scraping/')
-      setScrapingStatus(response.data)
+      setIsScrapingLoading(true);
+      await axios.post('http://localhost:8000/api/scraping/');
       
-      // Iniciar polling del estado
-      const interval = setInterval(async () => {
-        try {
-          const statusResponse = await axios.get('http://localhost:8000/api/scraping/status/')
-          setScrapingStatus(statusResponse.data)
-          
-          // Si el scraping ha terminado, detener el polling
-          if (!statusResponse.data.is_running) {
-            clearInterval(interval)
-            setIsScrapingLoading(false)
-            setSnackbar({
-              open: true,
-              message: 'Scraping completado exitosamente',
-              severity: 'success'
-            })
-          }
-        } catch (error) {
-          console.error('Error al obtener estado del scraping:', error)
-          clearInterval(interval)
-          setIsScrapingLoading(false)
+      // Función para verificar el estado
+      const checkStatus = async () => {
+        const { data } = await axios.get('http://localhost:8000/api/scraping/status');
+        
+        if (!data.is_running && data.completed_sources === data.total_sources) {
+          setIsScrapingLoading(false);
           setSnackbar({
             open: true,
-            message: 'Error al obtener estado del scraping',
-            severity: 'error'
-          })
+            message: 'Scraping completado exitosamente',
+            severity: 'success'
+          });
+          return true; // Proceso terminado
         }
-      }, 2000)
-      
-      setScrapingInterval(interval)
-      
+        return false; // Proceso aún en ejecución
+      };
+
+      // Verificar el estado cada segundo hasta que termine
+      const interval = setInterval(async () => {
+        try {
+          const finished = await checkStatus();
+          if (finished) {
+            clearInterval(interval);
+          }
+        } catch (error) {
+          console.error('Error al verificar estado:', error);
+        }
+      }, 1000);
+
     } catch (error) {
-      console.error('Error al iniciar scraping:', error)
-      setIsScrapingLoading(false)
+      console.error('Error al iniciar scraping:', error);
+      setIsScrapingLoading(false);
       setSnackbar({
         open: true,
         message: 'Error al iniciar scraping',
         severity: 'error'
-      })
+      });
     }
-  }
+  };
 
   return (
     <Box sx={{ mb: 3 }}>
@@ -319,12 +316,26 @@ const FilterPanel = ({ filters, onFilterChange }) => {
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Button
+          fullWidth
           variant="contained"
           onClick={handleStartScraping}
           disabled={isScrapingLoading}
           startIcon={isScrapingLoading ? <CircularProgress size={20} /> : <RefreshIcon />}
         >
-          {isScrapingLoading ? 'Actualizando...' : 'Actualizar Datos'}
+          {isScrapingLoading ? (
+            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+              <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
+                Actualizando... {scrapingStatus?.completed_sources || 0}/{scrapingStatus?.total_sources || 0}
+              </Typography>
+              {scrapingStatus?.current_source && (
+                <Typography variant="caption" sx={{ whiteSpace: 'nowrap' }}>
+                  Procesando: {scrapingStatus.current_source}
+                </Typography>
+              )}
+            </Box>
+          ) : (
+            'Actualizar Datos'
+          )}
         </Button>
 
         {scrapingStatus && scrapingStatus.is_running && (

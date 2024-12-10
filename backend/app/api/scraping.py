@@ -27,7 +27,7 @@ def get_db():
     finally:
         db.close()
 
-async def save_items_to_db(items, source_id: int, db: Session):
+async def save_items_to_db(items, db: Session):
     try:
         print(f"Intentando guardar {len(items)} items")
         for item in items:
@@ -52,12 +52,6 @@ async def save_items_to_db(items, source_id: int, db: Session):
                     # Asegurarse de que los campos de texto estén en UTF-8
                     title = item['title'].encode('utf-8').decode('utf-8')
                     description = item['description'].encode('utf-8').decode('utf-8')
-                    
-                    # Verificar que el source_type existe
-                    source = db.query(models.Source).filter(models.Source.scraper_type == item['source_type']).first()
-                    if not source:
-                        print(f"Error: Source type {item['source_type']} not found")
-                        continue
                     
                     db_item = models.Item(
                         title=title,
@@ -84,107 +78,6 @@ async def save_items_to_db(items, source_id: int, db: Session):
         print(f"Error detallado al guardar items: {str(e)}")
         print(f"Tipo de error: {type(e)}")
         raise
-
-@router.get("/sources")
-async def get_sources(db: Session = Depends(get_db)):
-    sources = db.query(models.Source).all()
-    return sources
-
-@router.post("/scrape/{source_id}")
-async def trigger_scraping(
-    source_id: int,
-    background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
-):
-    source = db.query(models.Source).filter(models.Source.id == source_id).first()
-    if not source:
-        raise HTTPException(status_code=404, detail="Source not found")
-    
-    # Actualizar timestamp de último scraping
-    source.last_scraped = datetime.utcnow()
-    db.commit()
-    
-    # Iniciar scraping según el tipo de fuente
-    if source.scraper_type == "anamed_cl":
-        items = await scrape_anamed()
-        if items:
-            await save_items_to_db(items, source_id, db)
-            return {"message": f"Scraping completado. Se encontraron {len(items)} items."}
-        return {"message": "Scraping completado. No se encontraron nuevos items."}
-    elif source.scraper_type == "congreso_pe":
-        items = await scrape_congreso()
-        if items:
-            await save_items_to_db(items, source_id, db)
-            return {"message": f"Scraping completado. Se encontraron {len(items)} items."}
-        return {"message": "Scraping completado. No se encontraron nuevos items."}
-    elif source.scraper_type == "expediente_pe":
-        items = await scrape_expediente()
-        if items:
-            await save_items_to_db(items, source_id, db)
-            return {"message": f"Scraping completado. Se encontraron {len(items)} items."}
-        return {"message": "Scraping completado. No se encontraron nuevos items."}
-    elif source.scraper_type == "digesa_pe":
-        items = await scrape_digesa()
-        if items:
-            await save_items_to_db(items, source_id, db)
-            return {"message": f"Scraping completado. Se encontraron {len(items)} items."}
-        return {"message": "Scraping completado. No se encontraron nuevos items."}
-    elif source.scraper_type == "digesa_noticias_pe":
-        items = await scrape_digesa_noticias()
-        if items:
-            await save_items_to_db(items, source_id, db)
-            return {"message": f"Scraping completado. Se encontraron {len(items)} items."}
-        return {"message": "Scraping completado. No se encontraron nuevos items."}
-    elif source.scraper_type == "diputados_noticias_cl":
-        items = await scrape_diputados_noticias()
-        if items:
-            await save_items_to_db(items, source_id, db)
-            return {"message": f"Scraping completado. Se encontraron {len(items)} items."}
-        return {"message": "Scraping completado. No se encontraron nuevos items."}
-    elif source.scraper_type == "diputados_proyectos_cl":
-        items = await scrape_diputados_proyectos()
-        if items:
-            await save_items_to_db(items, source_id, db)
-            return {"message": f"Scraping completado. Se encontraron {len(items)} items."}
-        return {"message": "Scraping completado. No se encontraron nuevos items."}
-    elif source.scraper_type == "ispch_noticias_cl":
-        items = await scrape_ispch_noticias()
-        if items:
-            await save_items_to_db(items, source_id, db)
-            return {"message": f"Scraping completado. Se encontraron {len(items)} items."}
-        return {"message": "Scraping completado. No se encontraron nuevos items."}
-    elif source.scraper_type == "ispch_resoluciones_cl":
-        items = await scrape_ispch_resoluciones()
-        if items:
-            await save_items_to_db(items, source_id, db)
-            return {"message": f"Scraping completado. Se encontraron {len(items)} items."}
-        return {"message": "Scraping completado. No se encontraron nuevos items."}
-    elif source.scraper_type == "minsa_normas_pe":
-        items = await scrape_minsa_normas()
-        if items:
-            await save_items_to_db(items, source_id, db)
-            return {"message": f"Scraping completado. Se encontraron {len(items)} items."}
-        return {"message": "Scraping completado. No se encontraron nuevos items."}
-    elif source.scraper_type == "minsa_noticias_pe":
-        items = await scrape_minsa_noticias()
-        if items:
-            await save_items_to_db(items, source_id, db)
-            return {"message": f"Scraping completado. Se encontraron {len(items)} items."}
-        return {"message": "Scraping completado. No se encontraron nuevos items."}
-    elif source.scraper_type == "senado_noticias_cl":
-        items = await scrape_senado_noticias()
-        if items:
-            await save_items_to_db(items, source_id, db)
-            return {"message": f"Scraping completado. Se encontraron {len(items)} items."}
-        return {"message": "Scraping completado. No se encontraron nuevos items."}
-    elif source.scraper_type == "digemid_noticias_pe":
-        items = await scrape_digemid_noticias()
-        if items:
-            await save_items_to_db(items, source_id, db)
-            return {"message": f"Scraping completado. Se encontraron {len(items)} items."}
-        return {"message": "Scraping completado. No se encontraron nuevos items."}
-    
-    raise HTTPException(status_code=400, detail="Tipo de scraper no soportado")
 
 # Variable global para rastrear el estado del scraping
 scraping_status = {
@@ -213,11 +106,27 @@ async def scrape_all_sources(
             "status": scraping_status
         }
     
+    # Lista de scrapers disponibles
+    scrapers = [
+        ("ANAMED", scrape_anamed),
+        ("Congreso PE", scrape_congreso),
+        ("Expediente PE", scrape_expediente),
+        ("DIGESA", scrape_digesa),
+        ("DIGESA Noticias", scrape_digesa_noticias),
+        ("Diputados Noticias", scrape_diputados_noticias),
+        ("Diputados Proyectos", scrape_diputados_proyectos),
+        ("ISPCH Noticias", scrape_ispch_noticias),
+        ("ISPCH Resoluciones", scrape_ispch_resoluciones),
+        ("MINSA Normas", scrape_minsa_normas),
+        ("MINSA Noticias", scrape_minsa_noticias),
+        ("Senado Noticias", scrape_senado_noticias),
+        ("DIGEMID Noticias", scrape_digemid_noticias)
+    ]
+    
     # Inicializar estado
-    sources = db.query(models.Source).filter(models.Source.active == True).all()
     scraping_status.update({
         "is_running": True,
-        "total_sources": len(sources),
+        "total_sources": len(scrapers),
         "completed_sources": 0,
         "current_source": None,
         "results": []
@@ -226,24 +135,28 @@ async def scrape_all_sources(
     async def process_sources():
         global scraping_status
         try:
-            for source in sources:
+            for name, scraper_func in scrapers:
                 try:
-                    scraping_status["current_source"] = source.name
-                    
-                    # Actualizar timestamp de último scraping
-                    source.last_scraped = datetime.utcnow()
-                    db.commit()
+                    scraping_status["current_source"] = name
                     
                     # Ejecutar el scraping
-                    result = await trigger_scraping(source.id, background_tasks, db)
-                    scraping_status["results"].append({
-                        "source": source.name,
-                        "status": "success",
-                        "message": result.get("message", "Scraping completado")
-                    })
+                    items = await scraper_func()
+                    if items:
+                        await save_items_to_db(items, db)
+                        scraping_status["results"].append({
+                            "source": name,
+                            "status": "success",
+                            "message": f"Scraping completado. Se encontraron {len(items)} items."
+                        })
+                    else:
+                        scraping_status["results"].append({
+                            "source": name,
+                            "status": "success",
+                            "message": "No se encontraron nuevos items."
+                        })
                 except Exception as e:
                     scraping_status["results"].append({
-                        "source": source.name,
+                        "source": name,
                         "status": "error",
                         "message": str(e)
                     })
@@ -261,61 +174,59 @@ async def scrape_all_sources(
         "status": scraping_status
     }
 
-@router.post("/sources")
-async def add_source(
-    name: str,
-    url: str,
-    scraper_type: str,
-    db: Session = Depends(get_db)
-):
-    source = models.Source(
-        name=name,
-        url=url,
-        scraper_type=scraper_type,
-        active=True
-    )
-    db.add(source)
-    try:
-        db.commit()
-        db.refresh(source)
-        return source
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
-
-@router.post("/cleanup-duplicates")
+@router.post("/cleanup")
 async def cleanup_duplicates(db: Session = Depends(get_db)):
     try:
-        from sqlalchemy import func
-        
-        # Encontrar grupos de duplicados basados en URL, título y fecha
-        duplicates = db.query(
+        # Encontrar duplicados basados en URL
+        url_duplicates = db.query(
             models.Item.source_url,
+            func.count(models.Item.id).label('count'),
+            func.min(models.Item.id).label('min_id')
+        ).group_by(
+            models.Item.source_url
+        ).having(
+            func.count(models.Item.id) > 1
+        ).all()
+        
+        # Encontrar duplicados basados en título y fecha
+        title_date_duplicates = db.query(
             models.Item.title,
             models.Item.presentation_date,
-            func.count(models.Item.id).label('count')
+            func.count(models.Item.id).label('count'),
+            func.min(models.Item.id).label('min_id')
         ).group_by(
-            models.Item.source_url,
             models.Item.title,
             models.Item.presentation_date
-        ).having(func.count(models.Item.id) > 1).all()
+        ).having(
+            func.count(models.Item.id) > 1
+        ).all()
         
         total_deleted = 0
         
-        for url, title, date, count in duplicates:
-            # Obtener todos los items duplicados para esta combinación
-            items = db.query(models.Item).filter(
+        # Eliminar duplicados por URL
+        for url, count, min_id in url_duplicates:
+            items_to_delete = db.query(models.Item).filter(
                 models.Item.source_url == url,
-                models.Item.title == title,
-                models.Item.presentation_date == date
-            ).order_by(models.Item.id).all()
+                models.Item.id != min_id
+            ).all()
             
-            if len(items) > 1:
-                # Mantener el primer registro (más antiguo) y eliminar el resto
-                for item in items[1:]:
-                    print(f"Eliminando duplicado - ID: {item.id}, Título: {item.title}, URL: {item.source_url}, Fecha: {item.presentation_date}")
-                    db.delete(item)
-                    total_deleted += 1
+            for item in items_to_delete:
+                print(f"Eliminando duplicado - ID: {item.id}, Título: {item.title}, URL: {item.source_url}, Fecha: {item.presentation_date}")
+                db.delete(item)
+                total_deleted += 1
+        
+        # Eliminar duplicados por título y fecha
+        for title, date, count, min_id in title_date_duplicates:
+            items_to_delete = db.query(models.Item).filter(
+                models.Item.title == title,
+                models.Item.presentation_date == date,
+                models.Item.id != min_id
+            ).all()
+            
+            for item in items_to_delete:
+                print(f"Eliminando duplicado - ID: {item.id}, Título: {item.title}, URL: {item.source_url}, Fecha: {item.presentation_date}")
+                db.delete(item)
+                total_deleted += 1
         
         db.commit()
         return {
@@ -325,5 +236,7 @@ async def cleanup_duplicates(db: Session = Depends(get_db)):
         
     except Exception as e:
         db.rollback()
-        print(f"Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al limpiar duplicados: {str(e)}"
+        )

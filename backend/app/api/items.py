@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime
 from ..database import SessionLocal
@@ -22,16 +22,15 @@ async def get_items(
     limit: int = 10,
     search: Optional[str] = None,
     country: Optional[str] = None,
-    source_type: Optional[str] = None,
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
     user_id: Optional[int] = None,
     use_keywords: bool = False
 ):
-    print(f"Received request - country: '{country}', source_type: '{source_type}', search: '{search}', user_id: '{user_id}'")
+    print(f"Received request - country: '{country}', search: '{search}', user_id: '{user_id}'")
     
-    # Start with a base query that includes the source relationship
-    query = db.query(models.Item).options(joinedload(models.Item.source))
+    # Start with a base query
+    query = db.query(models.Item)
     
     # Si se especifica user_id y use_keywords es True, filtrar por palabras clave del usuario
     if user_id and use_keywords:
@@ -67,11 +66,6 @@ async def get_items(
     if country:
         print(f"Applying country filter for: '{country}'")
         query = query.filter(models.Item.country.ilike(country))
-
-    # Apply source_type filter if provided
-    if source_type:
-        print(f"DEBUG: Applying source filter for: '{source_type}'")
-        query = query.join(models.Source).filter(models.Source.scraper_type == source_type)
     
     if start_date:
         start_date = datetime.strptime(start_date, "%Y-%m-%d")
@@ -84,7 +78,7 @@ async def get_items(
     # Get total count before pagination
     total = query.count()
     
-    # Apply pagination and get items with their sources
+    # Apply pagination and get items
     items = query.order_by(models.Item.presentation_date.desc()).offset(skip).limit(limit).all()
     
     # Convert items to dictionaries
@@ -92,7 +86,7 @@ async def get_items(
     for item in items:
         item_dict = item.to_dict()
         items_list.append(item_dict)
-        print(f"Item: {item.title} - Source: {item_dict['source_name']} ({item_dict['source_type']})")
+        print(f"Item: {item.title}")
     
     return {
         "total": total,
@@ -101,12 +95,7 @@ async def get_items(
 
 @router.get("/items/{item_id}")
 async def get_item(item_id: int, db: Session = Depends(get_db)):
-    item = db.query(models.Item).options(joinedload(models.Item.source)).filter(models.Item.id == item_id).first()
+    item = db.query(models.Item).filter(models.Item.id == item_id).first()
     if item is None:
         raise HTTPException(status_code=404, detail="Item not found")
     return item.to_dict()
-
-@router.get("/sources")
-async def get_sources(db: Session = Depends(get_db)):
-    sources = db.query(models.Source).all()
-    return [{"id": source.id, "name": source.name, "scraper_type": source.scraper_type} for source in sources]

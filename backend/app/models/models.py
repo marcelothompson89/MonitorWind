@@ -37,14 +37,11 @@ class Item(Base):
     description = Column(Text)
     country = Column(String, index=True)
     source_url = Column(String)
-    source_type = Column(String, ForeignKey("sources.scraper_type"))  # Foreign key to sources table
+    source_type = Column(String, index=True)
     presentation_date = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     extra_data = Column(Text)  # JSON con información adicional específica de cada fuente
-
-    # Relationship with Source
-    source = relationship("Source", backref="items")
 
     def to_dict(self):
         return {
@@ -52,10 +49,8 @@ class Item(Base):
             "title": self.title,
             "description": self.description,
             "country": self.country,
-            "source_url": self.source_url,
-            "source_type": self.source_type,
-            "source_name": self.source.name if self.source else "Desconocido",
-            "presentation_date": self.presentation_date,
+            "url": self.source_url,  # Mapear source_url a url para el frontend
+            "date": self.presentation_date,  # Mapear presentation_date a date para el frontend
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "extra_data": self.extra_data

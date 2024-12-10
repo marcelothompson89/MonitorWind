@@ -49,7 +49,7 @@ async def scrape_diputados_noticias():
                         "title": title,
                         "description": description,
                         "source_url": url,
-                        "source_type": "noticia",
+                        "source_type": "diputados_noticias_cl",
                         "country": "Chile",
                         "presentation_date": date,  # Ahora es un objeto datetime
                         "extra_data": json.dumps({
